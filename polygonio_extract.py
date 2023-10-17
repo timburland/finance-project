@@ -4,122 +4,159 @@ from google.cloud import bigquery
 import os
 from datetime import datetime, timedelta
 
-# Polygon.io API endpoint
-api_url = "https://api.polygon.io/v2/aggs/ticker/{stock}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
+def fetch_and_upload_stock_data():
+    # Polygon.io API endpoint
+    api_url = "https://api.polygon.io/v2/aggs/ticker/{stock}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
 
-# Replace with your Polygon.io API key
-api_key = "SyJY_Mq3g91e8BZIjCGGrFuIf1NW5738"
+    # Replace with your Polygon.io API key
+    api_key = "SyJY_Mq3g91e8BZIjCGGrFuIf1NW5738"
 
-# Replace with your Google Cloud project ID
-project_id = "stock-data-401620"
+    # Replace with your Google Cloud project ID
+    project_id = "stock-data-401620"
 
-# Define the stock symbols
-stock_symbols = ["META", "APPL", "AMZN", "NFLX", "GOOGL"] #MSFT
+    # Define the stock symbols
+    stock_symbols = ["META", "AMZN", "NFLX", "GOOGL"]
 
-# Define the date range
-date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')  # 30 days ago
-date_to = datetime.now().strftime('%Y-%m-%d')
+    # # Define the date range
+    # date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')  # 30 days ago
+    # date_to = datetime.now().strftime('%Y-%m-%d')
 
-# Define the output directory
-output_dir = "output"
+    # Define the output directory
+    output_dir = "output"
 
-# Create the output directory if it doesn't exist
-os.makedirs(output_dir, exist_ok=True)
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
 
-# Initialize a list to store the dataframes for each stock
-dataframes = []
+    # Initialize a list to store the dataframes for each stock
+    dataframes = []
 
-# Define the schema for your BigQuery table
-schema = [
-    bigquery.SchemaField('timestamp', 'TIMESTAMP'),
-    bigquery.SchemaField('symbol', 'STRING'),
-    bigquery.SchemaField('open', 'FLOAT'),
-    bigquery.SchemaField('high', 'FLOAT'),
-    bigquery.SchemaField('low', 'FLOAT'),
-    bigquery.SchemaField('close', 'FLOAT'),
-    bigquery.SchemaField('volume', 'INTEGER'),
-    bigquery.SchemaField('vwap', 'FLOAT'),
-]
+    # Define the mapping for column names
+    column_mapping = {
+        'o': 'open',
+        'h': 'high',
+        'l': 'low',
+        'c': 'close',
+        'v': 'volume',
+        'vw': 'vwap',
+        't': 'timestamp',
+    }
 
-# Loop through each stock symbol and retrieve data
-for stock_symbol in stock_symbols:
-    # Construct the API URL
-    url = api_url.format(
-        stock=stock_symbol,
-        multiplier=1,  # Adjust as needed
-        timespan="day",  # Adjust as needed
-        from_date=date_from,
-        to_date=date_to
-    ) + f"?apiKey={api_key}"
+    # Define the schema for your BigQuery table
+    schema = [
+        bigquery.SchemaField('timestamp', 'TIMESTAMP'),
+        bigquery.SchemaField('symbol', 'STRING'),
+        bigquery.SchemaField('open', 'FLOAT'),
+        bigquery.SchemaField('high', 'FLOAT'),
+        bigquery.SchemaField('low', 'FLOAT'),
+        bigquery.SchemaField('close', 'FLOAT'),
+        bigquery.SchemaField('volume', 'INTEGER'),
+        bigquery.SchemaField('vwap', 'FLOAT'),
+    ]
 
-    # Send a GET request to the API
-    response = requests.get(url)
+    # Loop through each stock symbol and retrieve data
+    for stock_symbol in stock_symbols:
 
-    if response.status_code == 200:
-        # Parse the JSON response into a Pandas DataFrame
-        data = response.json()
-        df = pd.DataFrame(data.get("results", []))
+        # Calculate the date range for the past 30 days
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
 
-        print(df)
+        # Format the date strings
+        date_from = start_date.strftime('%Y-%m-%d')
+        date_to = end_date.strftime('%Y-%m-%d')
 
-        for field in schema:
-            if field.name not in df.columns:
-                df[field.name] = None
+        # Construct the API URL
+        url = api_url.format(
+            stock=stock_symbol,
+            multiplier=1,  # Adjust as needed
+            timespan="day",  # Adjust as needed
+            from_date=date_from,
+            to_date=date_to
+        ) + f"?apiKey={api_key}"
 
-        # Add a 'symbol' column
-        df['symbol'] = stock_symbol
+        # Send a GET request to the API
+        response = requests.get(url)
 
-        # Determine the set of columns dynamically
-        columns = [field.name for field in schema]
-        missing_columns = set(columns) - set(df.columns)
+        if response.status_code == 200:
+            print('SUCCESS! Response code 200')
+            # Parse the JSON response into a Pandas DataFrame
+            data = response.json()
+            df = pd.DataFrame(data.get("results", []))
 
-        # Add missing columns to the dataframe with NaN values
-        for column in missing_columns:
-            df[column] = None
+            # Rename the columns based on the mapping
+            df = df.rename(columns=column_mapping)
 
-        # Select and reorder columns
-        selected_columns = ['timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'vwap']
-        df = df[selected_columns]
-        
-        # Convert 'timestamp' column to a valid timestamp format
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', origin='unix')
-        
-        dataframes.append(df)
+            for field in schema:
+                if field.name not in df.columns:
+                    df[field.name] = None
 
-        # Save the data as a CSV file
-        csv_filename = os.path.join(output_dir, f"{stock_symbol}_data.csv")
-        df.to_csv(csv_filename, index=False)
-        print(f"--> Data for {stock_symbol} saved as {csv_filename}")
-    else:
-        print(f"WARNING: Failed to retrieve data for {stock_symbol}. Status code: {response.status_code}")
+            # Add a 'symbol' column
+            df['symbol'] = stock_symbol
 
-# Concatenate all dataframes into a single dataframe
-combined_df = pd.concat(dataframes, ignore_index=True)
+            # Determine the set of columns dynamically
+            columns = [field.name for field in schema]
+            missing_columns = set(columns) - set(df.columns)
 
-# Upload the combined data to BigQuery
-client = bigquery.Client(project=project_id)
-dataset_id = "stock_data"  # Change to your desired dataset
-table_id = "MAANGM"  # Change to your desired table name
+            # Add missing columns to the dataframe with NaN values
+            for column in missing_columns:
+                df[column] = None
 
-job_config = bigquery.LoadJobConfig(
-    source_format=bigquery.SourceFormat.CSV,
-    skip_leading_rows=1,  # Skip the CSV header
-    schema=schema,  # Specify the schema for the table
-)
+            # Select and reorder columns
+            selected_columns = ['timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'vwap']
+            df = df[selected_columns]
 
-# Save the combined data as a CSV file
-combined_csv_filename = os.path.join(output_dir, "combined_stock_data.csv")
-combined_df.to_csv(combined_csv_filename, index=False)
-print(f"Combined data saved as {combined_csv_filename}")
+            # Convert 'timestamp' column to a valid timestamp format
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', origin='unix')
 
-# Upload the combined data to BigQuery
-dataset_ref = client.dataset(dataset_id)
-table_ref = dataset_ref.table(table_id)
+            # Convert 'volume' column to INT64
+            df['volume'] = df['volume'].astype('int64')
 
-with open(combined_csv_filename, "rb") as source_file:
-    job = client.load_table_from_file(
-        source_file, table_ref, job_config=job_config
+            dataframes.append(df)
+
+            # Save the data as a CSV file
+            csv_filename = os.path.join(output_dir, f"{stock_symbol}_data.csv")
+            df.to_csv(csv_filename, index=False)
+            print(f"--> Data for {stock_symbol} saved as {csv_filename}")
+        else:
+            print(f"WARNING: Failed to retrieve data for {stock_symbol}. Status code: {response.status_code}")
+
+    # Concatenate all dataframes into a single dataframe
+    combined_df = pd.concat(dataframes, ignore_index=True)
+
+    # Ensure that the data types match the schema
+    for field in schema:
+        if field.name in combined_df.columns:
+            if field.field_type == 'TIMESTAMP':
+                combined_df[field.name] = pd.to_datetime(combined_df[field.name])
+            elif field.field_type == 'FLOAT':
+                combined_df[field.name] = combined_df[field.name].astype(float)
+            elif field.field_type == 'INTEGER':
+                combined_df[field.name] = combined_df[field.name].astype(int)
+
+    # Upload the combined data to BigQuery
+    client = bigquery.Client(project=project_id)
+    dataset_id = "stock_data"  # Change to your desired dataset
+    table_id = "MAANGM"  # Change to your desired table name
+
+    job_config = bigquery.LoadJobConfig(
+        source_format=bigquery.SourceFormat.CSV,
+        skip_leading_rows=1,  # Skip the CSV header
+        schema=schema,  # Specify the schema for the table
     )
 
-job.result()  # Wait for the job to complete
-print(f"Combined data uploaded to BigQuery dataset '{dataset_id}' table '{table_id}'")
+    # Save the combined data as a CSV file
+    combined_csv_filename = os.path.join(output_dir, "combined_stock_data.csv")
+    combined_df.to_csv(combined_csv_filename, index=False)
+    print(f"Combined data saved as {combined_csv_filename}")
+
+    # Upload the combined data to BigQuery
+    dataset_ref = client.dataset(dataset_id)
+    table_ref = dataset_ref.table(table_id)
+
+    with open(combined_csv_filename, "rb") as source_file:
+        job = client.load_table_from_file(
+            source_file, table_ref, job_config=job_config
+        )
+
+    job.result()  # Wait for the job to complete
+    print(f"Combined data uploaded to BigQuery dataset '{dataset_id}' table '{table_id}'")
+
