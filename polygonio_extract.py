@@ -3,13 +3,14 @@ import pandas as pd
 from google.cloud import bigquery
 import os
 from datetime import datetime, timedelta
+from decouple import config
 
 def fetch_and_upload_stock_data():
     # Polygon.io API endpoint
     api_url = "https://api.polygon.io/v2/aggs/ticker/{stock}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
 
     # Replace with your Polygon.io API key
-    api_key = "SyJY_Mq3g91e8BZIjCGGrFuIf1NW5738"
+    api_key = config('POLYGON_API_KEY')
 
     # Replace with your Google Cloud project ID
     project_id = "stock-data-401620"
@@ -22,7 +23,7 @@ def fetch_and_upload_stock_data():
     two_years_ago = today - timedelta(days=730)  # Approximately 365 days per year
     date_from = two_years_ago.strftime('%Y-%m-%d')
     date_to = today.strftime('%Y-%m-%d')
-    
+
     # Define the output directory
     output_dir = "output"
 
