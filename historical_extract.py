@@ -8,9 +8,10 @@ from decouple import config
 def fetch_and_upload_stock_data():
     """
     This function extracts historical stock market data for a list of stock symbols
-    for the past 2 years using the Polygon.io API. It then transforms and prepares
-    the data, adding additional columns such as 'original_upload' and 'last_modified'.
-    Finally, it saves the data to CSV files and uploads it to the "MAANGM" BigQuery table.
+    for the past 2 years using the Polygon.io API, ending on a manually set day of 10-17-2023.
+    It then transforms and prepares the data, adding additional columns such as 'original_upload'
+    and 'last_modified'. Finally, it saves the data to CSV files and uploads
+    it to the "MAANGM" BigQuery table.
     """
     # Polygon.io API endpoint
     api_url = "https://api.polygon.io/v2/aggs/ticker/{stock}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
@@ -19,13 +20,13 @@ def fetch_and_upload_stock_data():
     api_key = config('POLYGON_API_KEY')
 
     # Replace with your Google Cloud project ID
-    project_id = "stock-data-401620"
+    project_id = config('BIGQUERY_PROJECT_ID')
 
     # Define the stock symbols
     stock_symbols = ["META", "AMZN", "NFLX", "GOOGL"]
 
     # Define the date range for the last 2 years
-    today = datetime.now()
+    today = datetime.strptime("2023-10-17", '%Y-%m-%d')
     two_years_ago = today - timedelta(days=730)  # Approximately 365 days per year
     date_from = two_years_ago.strftime('%Y-%m-%d')
     date_to = today.strftime('%Y-%m-%d')
@@ -138,8 +139,8 @@ def fetch_and_upload_stock_data():
 
     # Upload the combined data to BigQuery
     client = bigquery.Client(project=project_id)
-    dataset_id = "stock_data"  # Change to your desired dataset
-    table_id = "MAANGM"  # Change to your desired table name
+    dataset_id = config("POLYGON_DATASET_ID")  # Change to your desired dataset
+    table_id = config("POLYGON_TABLE")  # Change to your desired table name
 
     job_config = bigquery.LoadJobConfig(
         source_format=bigquery.SourceFormat.CSV,
