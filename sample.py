@@ -14,6 +14,7 @@ response = requests.get(api_url, params={"apiKey": api_key})
 
 # Check if the request was successful (HTTP status code 200)
 if response.status_code == 200:
+    print('SUCCESS! Status Code 200')
     # Parse the JSON response content
     data = response.json()
 

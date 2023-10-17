@@ -10,7 +10,7 @@ def fetch_and_upload_stock_data():
     This function extracts historical stock market data for a list of stock symbols
     for the past 2 years using the Polygon.io API. It then transforms and prepares
     the data, adding additional columns such as 'original_upload' and 'last_modified'.
-    Finally, it saves the data to CSV files and uploads it to a BigQuery table.
+    Finally, it saves the data to CSV files and uploads it to the "MAANGM" BigQuery table.
     """
     # Polygon.io API endpoint
     api_url = "https://api.polygon.io/v2/aggs/ticker/{stock}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
