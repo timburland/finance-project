@@ -2,9 +2,10 @@ import os
 from google.cloud import bigquery
 import requests
 import csv
+from decouple import config
 
 # Define your Polygon.io API key
-api_key = "SyJY_Mq3g91e8BZIjCGGrFuIf1NW5738"
+api_key = config('POLYGON_API_KEY')
 
 # Define the API endpoint URL
 api_url = "https://api.polygon.io/v2/aggs/ticker/AAPL/range/5/day/2023-01-01/2023-01-05"
