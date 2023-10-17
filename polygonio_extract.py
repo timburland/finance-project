@@ -17,10 +17,12 @@ def fetch_and_upload_stock_data():
     # Define the stock symbols
     stock_symbols = ["META", "AMZN", "NFLX", "GOOGL"]
 
-    # # Define the date range
-    # date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')  # 30 days ago
-    # date_to = datetime.now().strftime('%Y-%m-%d')
-
+    # Define the date range for the last 2 years
+    today = datetime.now()
+    two_years_ago = today - timedelta(days=730)  # Approximately 365 days per year
+    date_from = two_years_ago.strftime('%Y-%m-%d')
+    date_to = today.strftime('%Y-%m-%d')
+    
     # Define the output directory
     output_dir = "output"
 
@@ -43,6 +45,8 @@ def fetch_and_upload_stock_data():
 
     # Define the schema for your BigQuery table
     schema = [
+        bigquery.SchemaField('original_upload', 'TIMESTAMP'),
+        bigquery.SchemaField('last_modified', 'TIMESTAMP'),  
         bigquery.SchemaField('timestamp', 'TIMESTAMP'),
         bigquery.SchemaField('symbol', 'STRING'),
         bigquery.SchemaField('open', 'FLOAT'),
@@ -55,15 +59,6 @@ def fetch_and_upload_stock_data():
 
     # Loop through each stock symbol and retrieve data
     for stock_symbol in stock_symbols:
-
-        # Calculate the date range for the past 30 days
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-
-        # Format the date strings
-        date_from = start_date.strftime('%Y-%m-%d')
-        date_to = end_date.strftime('%Y-%m-%d')
-
         # Construct the API URL
         url = api_url.format(
             stock=stock_symbol,
@@ -77,7 +72,6 @@ def fetch_and_upload_stock_data():
         response = requests.get(url)
 
         if response.status_code == 200:
-            print('SUCCESS! Response code 200')
             # Parse the JSON response into a Pandas DataFrame
             data = response.json()
             df = pd.DataFrame(data.get("results", []))
@@ -92,6 +86,9 @@ def fetch_and_upload_stock_data():
             # Add a 'symbol' column
             df['symbol'] = stock_symbol
 
+            # Add 'original_upload' column with the current timestamp
+            df['original_upload'] = datetime.now()
+
             # Determine the set of columns dynamically
             columns = [field.name for field in schema]
             missing_columns = set(columns) - set(df.columns)
@@ -101,7 +98,7 @@ def fetch_and_upload_stock_data():
                 df[column] = None
 
             # Select and reorder columns
-            selected_columns = ['timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'vwap']
+            selected_columns = ['original_upload', 'last_modified', 'timestamp', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'vwap']
             df = df[selected_columns]
 
             # Convert 'timestamp' column to a valid timestamp format
@@ -160,3 +157,5 @@ def fetch_and_upload_stock_data():
     job.result()  # Wait for the job to complete
     print(f"Combined data uploaded to BigQuery dataset '{dataset_id}' table '{table_id}'")
 
+if __name__ == "__main__":
+    fetch_and_upload_stock_data()
