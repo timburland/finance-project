@@ -5,6 +5,9 @@ import os
 from datetime import datetime, timedelta
 from decouple import config
 
+# Set the path to your service account key file
+service_account_key_path = config("GOOGLE_APPLICATION_CREDENTIALS")
+
 def fetch_and_upload_stock_data():
     """
     This function extracts historical stock market data for a list of stock symbols
@@ -138,9 +141,10 @@ def fetch_and_upload_stock_data():
                 combined_df[field.name] = combined_df[field.name].astype(int)
 
     # Upload the combined data to BigQuery
-    client = bigquery.Client(project=project_id)
-    dataset_id = config("POLYGON_DATASET_ID")  # Change to your desired dataset
-    table_id = config("POLYGON_TABLE")  # Change to your desired table name
+    client = bigquery.Client.from_service_account_json(service_account_key_path)
+
+    dataset_id = config("POLYGON_DATASET_ID")
+    table_id = config("POLYGON_TABLE")
 
     job_config = bigquery.LoadJobConfig(
         source_format=bigquery.SourceFormat.CSV,
